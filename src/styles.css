@@ -1,0 +1,124 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #17211f;
+  background: #f7faf9;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.panel {
+  border: 1px solid #dbe6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 40px rgba(23, 33, 31, 0.06);
+}
+
+.section-title {
+  font-size: 1.125rem;
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+.primary-button,
+.secondary-button,
+.icon-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition:
+    background-color 150ms ease,
+    border-color 150ms ease,
+    color 150ms ease,
+    transform 150ms ease;
+}
+
+.primary-button {
+  min-height: 42px;
+  padding: 0.625rem 1rem;
+  background: #1f8a70;
+  color: #ffffff;
+}
+
+.primary-button:hover {
+  background: #19745f;
+}
+
+.secondary-button {
+  min-height: 42px;
+  padding: 0.625rem 1rem;
+  border-color: #dbe6e2;
+  background: #ffffff;
+  color: #17211f;
+}
+
+.secondary-button:hover,
+.icon-button:hover {
+  background: #f7faf9;
+  border-color: #bcd0ca;
+}
+
+.icon-button {
+  width: 40px;
+  height: 40px;
+  border-color: #dbe6e2;
+  background: #ffffff;
+  color: #17211f;
+}
+
+.search-box {
+  display: flex;
+  min-width: min(320px, 34vw);
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #dbe6e2;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 0.6rem 0.75rem;
+  color: #64748b;
+}
+
+.search-box:focus-within {
+  border-color: #1f8a70;
+  box-shadow: 0 0 0 3px rgba(31, 138, 112, 0.12);
+}
+
+.search-box input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #17211f;
+}
+
+.search-box input::placeholder {
+  color: #94a3b8;
+}
