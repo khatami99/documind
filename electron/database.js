@@ -123,6 +123,7 @@ export function listDocuments(search = '') {
       SELECT *
       FROM documents
       WHERE lower(file_name) LIKE $query
+        OR lower(COALESCE(title, '')) LIKE $query
         OR lower(COALESCE(category, '')) LIKE $query
         OR lower(COALESCE(tags, '')) LIKE $query
         OR lower(COALESCE(extracted_text, '')) LIKE $query
@@ -134,6 +135,37 @@ export function listDocuments(search = '') {
 
 export function getDocument(id) {
   return queryRows('SELECT * FROM documents WHERE id = $id', { $id: id })[0] ?? null;
+}
+
+export function updateDocumentMetadata(id, metadata) {
+  const title = normalizeNullableText(metadata.title);
+  const category = normalizeNullableText(metadata.category);
+  const tags = normalizeTags(metadata.tags);
+
+  db.run(
+    `
+      UPDATE documents
+      SET
+        title = $title,
+        category = $category,
+        tags = $tags
+      WHERE id = $id
+    `,
+    {
+      $id: id,
+      $title: title,
+      $category: category,
+      $tags: tags
+    }
+  );
+  persistDatabase();
+  return getDocument(id);
+}
+
+export function deleteDocument(id) {
+  db.run('DELETE FROM documents WHERE id = $id', { $id: id });
+  persistDatabase();
+  return { ok: true, id };
 }
 
 export function getDocumentStats() {
@@ -182,6 +214,26 @@ function queryRows(sql, params = {}) {
 
   statement.free();
   return rows;
+}
+
+function normalizeNullableText(value) {
+  const normalized = String(value ?? '').trim();
+  return normalized.length ? normalized : null;
+}
+
+function normalizeTags(value) {
+  if (Array.isArray(value)) {
+    const tags = value.map((tag) => String(tag).trim()).filter(Boolean);
+    return tags.length ? JSON.stringify(tags) : null;
+  }
+
+  const normalized = normalizeNullableText(value);
+  if (!normalized) {
+    return null;
+  }
+
+  const tags = normalized.split(',').map((tag) => tag.trim()).filter(Boolean);
+  return tags.length ? JSON.stringify(tags) : null;
 }
 
 function persistDatabase() {

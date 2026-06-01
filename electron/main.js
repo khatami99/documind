@@ -1,20 +1,29 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from 'electron';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  deleteDocument,
   getDocument,
   getDocumentStats,
   getSetting,
   initializeDatabase,
   listDocuments,
   setSetting,
+  updateDocumentMetadata,
   upsertDocuments
 } from './database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const supportedExtensions = new Set(['.pdf', '.jpg', '.jpeg', '.png']);
+const imageMimeTypes = new Map([
+  ['.jpg', 'image/jpeg'],
+  ['.jpeg', 'image/jpeg'],
+  ['.png', 'image/png']
+]);
+const maxPreviewBytes = 20 * 1024 * 1024;
+const maxPdfPreviewBytes = 35 * 1024 * 1024;
 
 let mainWindow;
 
@@ -120,7 +129,125 @@ ipcMain.handle('documents:scan', async (_event, folderPath) => {
 
 ipcMain.handle('documents:list', (_event, search) => listDocuments(search));
 ipcMain.handle('documents:get', (_event, id) => getDocument(id));
+ipcMain.handle('documents:updateMetadata', (_event, id, metadata) => updateDocumentMetadata(id, metadata));
+ipcMain.handle('documents:delete', (_event, id) => deleteDocument(id));
 ipcMain.handle('documents:stats', () => getDocumentStats());
+ipcMain.handle('documents:export', async (_event, documents, format) => {
+  const normalizedFormat = format === 'csv' ? 'csv' : 'json';
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Export Metadata Dokumen',
+    defaultPath: `documind-metadata.${normalizedFormat}`,
+    filters: [
+      normalizedFormat === 'csv'
+        ? { name: 'CSV', extensions: ['csv'] }
+        : { name: 'JSON', extensions: ['json'] }
+    ]
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { ok: false, canceled: true };
+  }
+
+  const content = normalizedFormat === 'csv'
+    ? toCsv(documents)
+    : JSON.stringify(documents, null, 2);
+
+  await fs.writeFile(result.filePath, content, 'utf8');
+  return { ok: true, filePath: result.filePath };
+});
 ipcMain.handle('settings:get', (_event, key) => getSetting(key));
 ipcMain.handle('settings:set', (_event, key, value) => setSetting(key, value));
 ipcMain.handle('file:show', (_event, filePath) => shell.showItemInFolder(filePath));
+ipcMain.handle('file:open', async (_event, filePath) => {
+  const errorMessage = await shell.openPath(filePath);
+  return { ok: !errorMessage, error: errorMessage };
+});
+ipcMain.handle('file:copyPath', (_event, filePath) => {
+  clipboard.writeText(filePath);
+  return { ok: true };
+});
+ipcMain.handle('file:imagePreview', async (_event, filePath) => {
+  const extension = path.extname(filePath).toLowerCase();
+  const mimeType = imageMimeTypes.get(extension);
+
+  if (!mimeType) {
+    return null;
+  }
+
+  const stats = await fs.stat(filePath);
+  if (stats.size > maxPreviewBytes) {
+    return {
+      error: 'Ukuran gambar terlalu besar untuk preview cepat.'
+    };
+  }
+
+  const imageBuffer = await fs.readFile(filePath);
+  return {
+    dataUrl: `data:${mimeType};base64,${imageBuffer.toString('base64')}`
+  };
+});
+ipcMain.handle('file:status', async (_event, filePath) => {
+  try {
+    const stats = await fs.stat(filePath);
+    return {
+      exists: true,
+      size: stats.size,
+      updated_at: stats.mtime.toISOString()
+    };
+  } catch {
+    return {
+      exists: false
+    };
+  }
+});
+ipcMain.handle('file:pdfPreview', async (_event, filePath) => {
+  const extension = path.extname(filePath).toLowerCase();
+  if (extension !== '.pdf') {
+    return null;
+  }
+
+  const stats = await fs.stat(filePath);
+  if (stats.size > maxPdfPreviewBytes) {
+    return {
+      error: 'Ukuran PDF terlalu besar untuk preview cepat.'
+    };
+  }
+
+  const pdfBuffer = await fs.readFile(filePath);
+  return {
+    dataUrl: `data:application/pdf;base64,${pdfBuffer.toString('base64')}`
+  };
+});
+
+function toCsv(documents) {
+  const columns = [
+    'file_name',
+    'file_path',
+    'file_type',
+    'file_size',
+    'created_at',
+    'updated_at',
+    'title',
+    'category',
+    'tags',
+    'extracted_text',
+    'ai_summary',
+    'document_type',
+    'ai_metadata'
+  ];
+
+  const rows = documents.map((document) =>
+    columns.map((column) => escapeCsvValue(document[column] ?? '')).join(',')
+  );
+
+  return [columns.join(','), ...rows].join('\n');
+}
+
+function escapeCsvValue(value) {
+  const text = String(value);
+  if (!/[",\n\r]/.test(text)) {
+    return text;
+  }
+
+  return `"${text.replaceAll('"', '""')}"`;
+}
